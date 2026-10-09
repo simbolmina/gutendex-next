@@ -14,12 +14,12 @@ services:
       # instead (the fork must still contain the entrypoint + auth patch).
       # context: https://github.com/<you>/gutendex-next.git#main
     restart: unless-stopped
-    # ports (not expose): Coolify only auto-detects the container port from
-    # `ports`; with expose it falls back to probing localhost:3000 and the
-    # deploy gate fails. The Bearer gate is what protects the API, so a host
-    # binding here is acceptable.
-    ports:
-      - "8000:8000"
+    # expose, not ports: Coolify's own dashboard binds 8000 on the host, so a
+    # host port mapping fails with "port is already allocated". With the
+    # Docker Compose build pack, Traefik reaches the container's exposed port
+    # over the compose network — point the domain at port 8000 in the UI.
+    expose:
+      - "8000"
     environment:
       # Bearer token every catalog request must carry; the app sends it from
       # the gutendex_api_key Remote Config key. Generate a long random value.

@@ -17,14 +17,17 @@ app = FastAPI(title="Gutendex Next", description="Free ebooks API")
 app.router.redirect_slashes = False
 
 # Private-mirror gate: when GUTENDEX_API_TOKEN is set, every request except
-# /health must carry "Authorization: Bearer <token>". An empty token disables
-# the gate, so the same image can serve a public instance.
+# the landing page and /health must carry "Authorization: Bearer <token>".
+# An empty token disables the gate, so the same image can serve a public
+# instance. / stays open so a browser visit (and platform health probes that
+# hit /) still answer 200; it serves only the static landing page.
 API_TOKEN = os.getenv("GUTENDEX_API_TOKEN", "").strip()
+OPEN_PATHS = {"/", "/health"}
 
 
 @app.middleware("http")
 async def bearer_gate(request: Request, call_next):
-    if API_TOKEN and request.url.path != "/health":
+    if API_TOKEN and request.url.path not in OPEN_PATHS:
         if request.headers.get("authorization") != f"Bearer {API_TOKEN}":
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     return await call_next(request)

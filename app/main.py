@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+import os
+
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
@@ -13,6 +15,20 @@ Base.metadata.create_all(bind=engine)
 # Create FastAPI app
 app = FastAPI(title="Gutendex Next", description="Free ebooks API")
 app.router.redirect_slashes = False
+
+# Private-mirror gate: when GUTENDEX_API_TOKEN is set, every request except
+# /health must carry "Authorization: Bearer <token>". An empty token disables
+# the gate, so the same image can serve a public instance.
+API_TOKEN = os.getenv("GUTENDEX_API_TOKEN", "").strip()
+
+
+@app.middleware("http")
+async def bearer_gate(request: Request, call_next):
+    if API_TOKEN and request.url.path != "/health":
+        if request.headers.get("authorization") != f"Bearer {API_TOKEN}":
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return await call_next(request)
+
 
 # Add CORS middleware (allow all origins)
 app.add_middleware(

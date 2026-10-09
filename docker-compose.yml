@@ -1,14 +1,41 @@
+# Coolify-ready compose for a private Gutendex mirror (gutendex-next).
+# This file belongs at the ROOT of your fork of
+# https://github.com/Pool-Of-Tears/gutendex-next (replacing the upstream
+# docker-compose.yml), next to the upstream Dockerfile. Deploying it anywhere
+# else fails the build with "failed to read dockerfile" because `context: .`
+# resolves to wherever the compose file lives.
 services:
   gutendex-next:
     container_name: gutendex-next
     build:
       context: .
+      # Alternative for a Coolify "Docker Compose (empty)" resource pasted
+      # without a repo checkout: point the context at the public fork URL
+      # instead (the fork must still contain the entrypoint + auth patch).
+      # context: https://github.com/<you>/gutendex-next.git#main
     restart: unless-stopped
-    ports:
-      - 5073:8000
+    # expose, not ports: the container stays on the compose network and only
+    # Coolify's Traefik reaches it — nothing binds on the host's public
+    # interfaces. In Coolify, point the domain at port 8000.
+    expose:
+      - "8000"
     environment:
+      # Bearer token every catalog request must carry; the app sends it from
+      # the gutendex_api_key Remote Config key. Generate a long random value.
+      GUTENDEX_API_TOKEN: ${GUTENDEX_API_TOKEN}
       UVICORN_WORKERS: "2"
       UVICORN_LIMIT_MAX_REQUESTS: "2000"
+      # Set true only for the first boot (one-time ~10-15 min catalog
+      # import); leave false afterwards so restarts stay instant.
+      RUN_UPDATECATALOG_ON_STARTUP: ${RUN_UPDATECATALOG_ON_STARTUP:-false}
     volumes:
-      - ./data:/app/data  # Database and catalog data
-    user: 1000:1000
+      - gutendex-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  gutendex-data:
